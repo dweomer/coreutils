@@ -56,6 +56,7 @@ paste /dev/zero
 pr /dev/zero
 pr --version; yes 1 | pr
 seq inf
+shuf -i 0-1 -r
 tail -n+1 -z /dev/zero
 tee < /dev/zero
 tr . . < /dev/zero
