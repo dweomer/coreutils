@@ -37,4 +37,19 @@ case $ls_l in
   *) fail=1; ;;
 esac
 
+# Verify appropriate alignment in the presence of ACLs
+uid=$(id -u) || framework_failure_
+mkdir pad &&
+(
+cd pad &&
+touch f1 f2 f3 f4 f5 &&
+setfacl -m "u:${uid}:rw" f1 f2 f3 f4 f5
+) || framework_failure_
+
+# The gap between the '+' indicator and the link count must be the same
+# whether the listing contains one or several ACL entries.
+gap1=$(ls -l pad/f1 | sed -n 's/^[^+]*+\( *\)[0-9].*/\1/p')
+gap5=$(ls -l pad    | sed -n 's/^[^+]*+\( *\)[0-9].*/\1/p' | head -n1)
+test "x$gap1" = "x$gap5" || fail=1
+
 Exit $fail
