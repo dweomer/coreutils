@@ -121,7 +121,8 @@ normalize_tty_output ($)
           $exp->spawn("$cmd 2> $stderr")
             or (warn "$ME: cannot run '$cmd' ($mode): $!\n"),
                $fail=1, next;
-          set_tty_eof_char ($exp->slave, $eof_char);
+          # Fails on perl-IO-Tty >= 1.24 https://bugzilla.redhat.com/2463168
+          # set_tty_eof_char ($exp->slave, $eof_char);
 
           my $input = "a b\n";
           if ($with_input)
