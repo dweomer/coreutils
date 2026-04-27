@@ -188,6 +188,16 @@ struct buffer
   bool eof;			/* An EOF has been read.  */
 };
 
+/* Policy for sizing the main sort buffer.  INITIAL is the allocation
+   to try first.  LIMIT is the largest allocation to try while reading
+   normal input; a single input line can still force a larger buffer.  */
+struct sort_buffer_policy
+{
+  size_t initial;
+  size_t limit;
+  bool growth_failed;
+};
+
 /* Sort key.  */
 struct keyfield
 {
@@ -1560,7 +1570,8 @@ specify_nthreads (int oi, char c, char const *s)
   return nthreads;
 }
 
-/* Return the default sort size.  */
+/* Return the default sort size.  This is a growth limit, not necessarily
+   the initial allocation size.  */
 static size_t
 default_sort_size (void)
 {
@@ -1606,21 +1617,76 @@ default_sort_size (void)
   return MAX (size, MIN_SORT_SIZE);
 }
 
-/* Return the sort buffer size to use with the input files identified
+/* Return true if *ALLOC has been adjusted to a size suitable for a sort
+   buffer.  */
+
+static bool
+line_aligned_size (size_t *alloc)
+{
+  size_t size = *alloc;
+  size_t alignment = sizeof (struct line);
+  size_t padding = alignment - size % alignment;
+  size_t aligned;
+
+  if (ckd_add (&aligned, size, padding))
+    return false;
+
+  *alloc = aligned;
+  return true;
+}
+
+/* Return the default initial allocation for a growable sort buffer.  */
+
+static size_t
+default_initial_sort_size (size_t line_bytes)
+{
+  size_t size = line_bytes + 2;
+  size_t input_size;
+
+  if (ckd_mul (&input_size, INPUT_FILE_SIZE_GUESS, line_bytes + 1)
+      || ckd_add (&size, size, input_size))
+    return SIZE_MAX;
+
+  return MAX (size, MIN_SORT_SIZE);
+}
+
+/* Store into *WORST_CASE the allocation needed for FILE_SIZE input bytes
+   in the worst case, where each input byte is a line delimiter except
+   for a final non-delimiter byte.  Return false on overflow.  */
+
+static bool
+input_size_buffer_bytes (uintmax_t file_size, size_t line_bytes,
+                         size_t *worst_case)
+{
+  size_t worst_case_per_input_byte = line_bytes + 1;
+
+  if (SIZE_MAX / worst_case_per_input_byte < file_size)
+    return false;
+
+  size_t size = file_size * worst_case_per_input_byte;
+  if (SIZE_MAX - size < 1)
+    return false;
+
+  *worst_case = size + 1;
+  return true;
+}
+
+/* Set *POLICY to the sort buffer policy to use with the input files identified
    by FPS and FILES, which are alternate names of the same files.
    NFILES gives the number of input files; NFPS may be less.  Assume
    that each input line requires LINE_BYTES extra bytes' worth of line
    information.  Do not exceed the size bound specified by the user
    (or a default size bound, if the user does not specify one).  */
 
-static size_t
-sort_buffer_size (FILE *const *fps, size_t nfps,
-                  char *const *files, size_t nfiles,
-                  size_t line_bytes)
+static void
+sort_buffer_policy (FILE *const *fps, size_t nfps,
+                    char *const *files, size_t nfiles,
+                    size_t line_bytes,
+                    struct sort_buffer_policy *policy)
 {
-  /* A bound on the input size.  If zero, the bound hasn't been
-     determined yet.  */
-  static size_t size_bound;
+  size_t size_bound = sort_size ? sort_size : default_sort_size ();
+  size_t initial_bound =
+    sort_size ? size_bound : default_initial_sort_size (line_bytes);
 
   /* In the worst case, each input byte is a newline.  */
   size_t worst_case_per_input_byte = line_bytes + 1;
@@ -1629,11 +1695,22 @@ sort_buffer_size (FILE *const *fps, size_t nfps,
      This extra room might be needed when preparing to read EOF.  */
   size_t size = worst_case_per_input_byte + 1;
 
+  initial_bound = MIN (initial_bound, size_bound);
+  policy->limit = size_bound;
+  policy->growth_failed = false;
+
   for (size_t i = 0; i < nfiles; i++)
     {
       struct stat st;
       off_t file_size;
       size_t worst_case;
+      bool known_size;
+
+      if (size_bound <= size)
+        {
+          policy->initial = size_bound;
+          return;
+        }
 
       if ((i < nfps ? fstat (fileno (fps[i]), &st)
            : streq (files[i], "-") ? fstat (STDIN_FILENO, &st)
@@ -1641,35 +1718,42 @@ sort_buffer_size (FILE *const *fps, size_t nfps,
           != 0)
         sort_die (_("stat failed"), files[i]);
 
-      if (usable_st_size (&st) && 0 < st.st_size)
+      known_size = usable_st_size (&st) && 0 < st.st_size;
+      if (known_size)
         file_size = st.st_size;
       else
         {
           /* The file has unknown size.  If the user specified a sort
              buffer size, use that; otherwise, guess the size.  */
           if (sort_size)
-            return sort_size;
+            {
+              policy->initial = size_bound;
+              return;
+            }
           file_size = INPUT_FILE_SIZE_GUESS;
-        }
-
-      if (! size_bound)
-        {
-          size_bound = sort_size;
-          if (! size_bound)
-            size_bound = default_sort_size ();
         }
 
       /* Add the amount of memory needed to represent the worst case
          where the input consists entirely of newlines followed by a
          single non-newline.  Check for overflow.  */
-      worst_case = file_size * worst_case_per_input_byte + 1;
-      if (file_size != worst_case / worst_case_per_input_byte
+      if (! input_size_buffer_bytes (file_size, line_bytes, &worst_case)
           || size_bound - size <= worst_case)
-        return size_bound;
+        {
+          policy->initial = size_bound;
+          return;
+        }
+
+      if (! known_size && ! sort_size
+          && (initial_bound <= size || initial_bound - size <= worst_case))
+        {
+          policy->initial = MAX (size, initial_bound);
+          return;
+        }
+
       size += worst_case;
     }
 
-  return size;
+  policy->initial = MAX (size, MIN_SORT_SIZE);
 }
 
 /* Initialize BUF.  Reserve LINE_BYTES bytes for each line; LINE_BYTES
@@ -1685,8 +1769,10 @@ initbuf (struct buffer *buf, size_t line_bytes, size_t alloc)
      but that's better than failing.  */
   while (true)
     {
-      alloc += sizeof (struct line) - alloc % sizeof (struct line);
-      buf->buf = malloc (alloc);
+      if (! line_aligned_size (&alloc))
+        buf->buf = NULL;
+      else
+        buf->buf = malloc (alloc);
       if (buf->buf)
         break;
       alloc /= 2;
@@ -1707,6 +1793,67 @@ buffer_linelim (struct buffer const *buf)
 {
   void *linelim = buf->buf + buf->alloc;
   return linelim;
+}
+
+/* Try to resize BUF to ALLOC bytes.  Return true if successful.  This
+   preserves the input data and the line array, adjusting line pointers
+   when the buffer base changes.  */
+
+static bool
+try_growbuf (struct buffer *buf, size_t alloc)
+{
+  if (! line_aligned_size (&alloc) || alloc <= buf->alloc)
+    return false;
+
+  char *newbuf = malloc (alloc);
+  if (! newbuf)
+    return false;
+
+  char *oldbuf = buf->buf;
+  struct line *old_linelim = buffer_linelim (buf);
+  struct line *old_line = old_linelim - buf->nlines;
+
+  memcpy (newbuf, oldbuf, buf->used);
+
+  struct line *new_linelim = (void *) (newbuf + alloc);
+  struct line *new_line = new_linelim - buf->nlines;
+  memcpy (new_line, old_line, buf->nlines * sizeof *new_line);
+
+  for (struct line *line = new_line; line < new_linelim; line++)
+    {
+      line->text = newbuf + (line->text - oldbuf);
+      if (keylist)
+        {
+          line->keybeg = newbuf + (line->keybeg - oldbuf);
+          line->keylim = newbuf + (line->keylim - oldbuf);
+        }
+    }
+
+  free (oldbuf);
+  buf->buf = newbuf;
+  buf->alloc = alloc;
+  return true;
+}
+
+/* Try to grow BUF according to POLICY.  Return true if the buffer grew.  */
+
+static bool
+maybe_growbuf (struct buffer *buf, struct sort_buffer_policy *policy)
+{
+  if (! policy || policy->growth_failed || policy->limit <= buf->alloc)
+    return false;
+
+  size_t alloc;
+  if (buf->alloc <= policy->limit / 3)
+    alloc = buf->alloc * 3;
+  else
+    alloc = policy->limit;
+
+  if (try_growbuf (buf, alloc))
+    return true;
+
+  policy->growth_failed = true;
+  return false;
 }
 
 /* Return a pointer to the first character of the field specified
@@ -1869,7 +2016,8 @@ limfield (struct line const *line, struct keyfield const *key)
    Return true if some input was read.  */
 
 static bool
-fillbuf (struct buffer *buf, FILE *fp, char const *file)
+fillbuf (struct buffer *buf, FILE *fp, char const *file,
+         struct sort_buffer_policy *policy)
 {
   struct keyfield const *key = keylist;
   char eol = eolchar;
@@ -1966,6 +2114,8 @@ fillbuf (struct buffer *buf, FILE *fp, char const *file)
       buf->nlines = buffer_linelim (buf) - line;
       if (buf->nlines != 0)
         {
+          if (! buf->eof && maybe_growbuf (buf, policy))
+            continue;
           buf->left = ptr - line_start;
           merge_buffer_size = mergesize + MIN_MERGE_BUFFER_SIZE;
           return true;
@@ -3082,7 +3232,7 @@ check (char const *file_name, char checkonly)
            MAX (merge_buffer_size, sort_size));
   temp.text = NULL;
 
-  while (fillbuf (&buf, fp, file_name))
+  while (fillbuf (&buf, fp, file_name, NULL))
     {
       struct line const *line = buffer_linelim (&buf);
       struct line const *linebase = line - buf.nlines;
@@ -3206,7 +3356,7 @@ mergefps (struct sortfile *files, size_t ntemps, size_t nfiles,
     {
       initbuf (&buffer[i], sizeof (struct line),
                MAX (merge_buffer_size, sort_size / nfiles));
-      if (fillbuf (&buffer[i], fps[i], files[i].name))
+      if (fillbuf (&buffer[i], fps[i], files[i].name, NULL))
         {
           struct line const *linelim = buffer_linelim (&buffer[i]);
           cur[i] = linelim - 1;
@@ -3290,7 +3440,8 @@ mergefps (struct sortfile *files, size_t ntemps, size_t nfiles,
         cur[ord[0]] = smallest - 1;
       else
         {
-          if (fillbuf (&buffer[ord[0]], fps[ord[0]], files[ord[0]].name))
+          if (fillbuf (&buffer[ord[0]], fps[ord[0]], files[ord[0]].name,
+                       NULL))
             {
               struct line const *linelim = buffer_linelim (&buffer[ord[0]]);
               cur[ord[0]] = linelim - 1;
@@ -4157,10 +4308,13 @@ sort (char *const *files, size_t nfiles, char const *output_file,
       size_t nthreads)
 {
   struct buffer buf;
+  struct sort_buffer_policy policy;
   size_t ntemps = 0;
   bool output_file_created = false;
 
   buf.alloc = 0;
+  policy.initial = policy.limit = 0;
+  policy.growth_failed = false;
 
   while (nfiles)
     {
@@ -4186,13 +4340,16 @@ sort (char *const *files, size_t nfiles, char const *output_file,
         bytes_per_line = sizeof (struct line) * 3 / 2;
 
       if (! buf.alloc)
-        initbuf (&buf, bytes_per_line,
-                 sort_buffer_size (&fp, 1, files, nfiles, bytes_per_line));
+        {
+          sort_buffer_policy (&fp, 1, files, nfiles, bytes_per_line,
+                              &policy);
+          initbuf (&buf, bytes_per_line, policy.initial);
+        }
       buf.eof = false;
       files++;
       nfiles--;
 
-      while (fillbuf (&buf, fp, file))
+      while (fillbuf (&buf, fp, file, &policy))
         {
           struct line *line;
 

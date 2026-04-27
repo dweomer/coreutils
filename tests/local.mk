@@ -426,6 +426,7 @@ all_tests =					\
   tests/cksum/sm3sum.pl				\
   tests/sort/sort.pl				\
   tests/sort/sort-benchmark-random.sh		\
+  tests/sort/sort-buffer-size.sh		\
   tests/sort/sort-compress.sh			\
   tests/sort/sort-compress-hang.sh		\
   tests/sort/sort-compress-proc.sh		\
