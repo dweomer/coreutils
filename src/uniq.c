@@ -285,8 +285,8 @@ find_field (struct linebuffer const *line, idx_t *plen)
   else
     {
       char *ep = lp;
-      for (idx_t i = check_chars; 0 < i && lp < lim; i--)
-        ep += mcel_scan (lp, lim).len;
+      for (idx_t i = check_chars; 0 < i && ep < lim; i--)
+        ep += mcel_scan (ep, lim).len;
       len = ep - lp;
     }
 

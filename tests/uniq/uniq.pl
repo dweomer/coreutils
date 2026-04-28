@@ -234,6 +234,9 @@ my @Tests =
         "  - 'separate'\n" .
         "  - 'both'\n" .
         "Try '$prog --help' for more information.\n"}],
+ # Test for read buffer overrun.
+ do { my $longline = "\360\237\230\200" . "A" x 255 . "\n";
+      ['146', '-w256', {IN  => $longline x 2}, {OUT => $longline}] },
 );
 
 # Locale related tests
