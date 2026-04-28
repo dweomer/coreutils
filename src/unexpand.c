@@ -131,7 +131,7 @@ unexpand (void)
   /* The worst case is a non-blank character, then one blank, then a
      tab stop, then MAX_COLUMN_WIDTH - 1 blanks, then a non-blank; so
      allocate MAX_COLUMN_WIDTH bytes to store the blanks.  */
-  pending_blank = ximalloc (max_column_width * sizeof (char) * MB_LEN_MAX);
+  pending_blank = xinmalloc (max_column_width, MB_CUR_MAX);
 
   while (true)
     {

@@ -17,6 +17,7 @@
 
 . "${srcdir=.}/tests/init.sh"; path_prepend_ ./src
 print_ver_ unexpand printf
+getlimits_
 
 test "$LOCALE_FR_UTF8" != none || skip_ "French UTF-8 locale not available"
 export LC_ALL="$LOCALE_FR_UTF8"
@@ -160,5 +161,12 @@ EOF
 
 unexpand -a ./in ./in > out || fail=1
 compare exp out > /dev/null 2>&1 || fail=1
+
+# Ensure overflow is handed gracefully
+# coreutils v9.11 induced a buffer overflow with mb_mul=4 (or 16).
+for mb_mul in 4 6; do
+  printf '   \n' | unexpand -t $(expr $SIZE_MAX / $mb_mul + 1) 2>err; ret=$?
+  test "$ret" = 1 || test "$ret" = 0 || { cat err; fail=1; }
+done
 
 Exit $fail
