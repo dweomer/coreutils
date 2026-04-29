@@ -90,7 +90,7 @@ static bool complement;
 static mcel_t delim_mcel;
 
 /* The delimiter bytes.  */
-static char delim_bytes[MB_LEN_MAX];
+static char delim_bytes[MCEL_LEN_MAX];
 
 /* The delimiter for each line/record.  */
 static unsigned char line_delim = '\n';
@@ -103,7 +103,7 @@ static size_t output_delimiter_length;
 static char *output_delimiter_string;
 
 /* The output delimiter string contents, if the default.  */
-static char output_delimiter_default[MB_LEN_MAX];
+static char output_delimiter_default[MCEL_LEN_MAX];
 
 /* True if we have ever read standard input.  */
 static bool have_read_stdin;
