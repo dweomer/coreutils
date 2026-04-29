@@ -318,22 +318,21 @@ static void
 cat_file (char const *header, char const *home, char const *file)
 {
   char *full_name = file_name_concat (home, file, NULL);
-  int fd = open (full_name, O_RDONLY);
+  FILE *fp = fopen (full_name, "r");
 
-  if (0 <= fd)
+  if (fp)
     {
-      idx_t header_len = strlen (header);
-      if (write (STDOUT_FILENO, header, header_len) != header_len)
-        write_error ();
+      fputs (header, stdout);
 
-      fdadvise (fd, 0, 0, FADVISE_SEQUENTIAL);
+      fadvise (fp, FADVISE_SEQUENTIAL);
 
-      char buf[IO_BUFSIZE];
-      for (ssize_t bytes_read; 0 < (bytes_read = read (fd, buf, sizeof buf));)
-        if (full_write (STDOUT_FILENO, buf, bytes_read) != bytes_read)
+      char buf[BUFSIZ];
+      for (size_t bytes_read;
+           0 < (bytes_read = fread (buf, 1, sizeof buf, fp));)
+        if (fwrite (buf, 1, bytes_read, stdout) != bytes_read)
           write_error ();
 
-      close (fd);
+      fclose (fp);
     }
 
   free (full_name);
