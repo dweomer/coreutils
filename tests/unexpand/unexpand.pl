@@ -93,7 +93,7 @@ my @Tests =
      # It is debatable whether this test should require an environment
      # setting of e.g., _POSIX2_VERSION=1.
      ['obs-ovflo', "-$limits->{UINTMAX_OFLOW}", {IN=>''}, {OUT=>''},
-      {EXIT => 1}, {ERR => "$prog: tab stop value is too large\n"}],
+      {EXIT => 1}, {ERR => "$prog: tab stop is too large\n"}],
 
 
      # Test input with backspaces '\b' ('bs1' is the baseline, without \b)
