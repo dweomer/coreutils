@@ -759,7 +759,7 @@ EXPRESSION is true or false and sets exit status.  It is one of:\n\
   -f FILE     FILE exists and is a regular file\n\
 "));
       oputs (_("\
-  -g FILE     FILE exists and is set-group-ID\n\
+  -g FILE     FILE exists and its set-group-ID bit is set\n\
 "));
       oputs (_("\
   -G FILE     FILE exists and is owned by the effective group ID\n\
