@@ -34,6 +34,16 @@ echo foo > foo || framework_failure_
 {
 printf '%s' "\
 cat foo
+cksum -a sysv foo
+cksum -a bsd foo
+cksum -a crc foo
+cksum -a crc32b foo
+cksum -a md5 foo
+cksum -a sha1 foo
+cksum -a sha2 -l 256 foo
+cksum -a sha3 -l 256 foo
+cksum -a blake2b foo
+cksum -a sm3 foo
 comm foo foo
 cut -c1- foo
 cut -f1- foo

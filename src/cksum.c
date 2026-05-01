@@ -1317,9 +1317,6 @@ output_file (char const *file, int binary_file, void const *digest,
     }
 
   putchar (delim);
-
-  if (ferror (stdout))
-    write_error ();
 }
 #endif
 
@@ -1885,6 +1882,8 @@ main (int argc, char **argv)
             {
               DIGEST_OUT (file, binary_file, bin_buffer, raw_digest, prefix_tag,
                           digest_delim, optind != argc, length);
+              if (ferror (stdout))
+                write_error ();
             }
         }
     }
