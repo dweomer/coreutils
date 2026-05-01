@@ -38,7 +38,7 @@ _GL_INLINE_HEADER_BEGIN
 #endif
 
 /* End of file.  */
-#define MBBUF_EOF UINT32_MAX
+#define MBBUF_EOF (MCEL_CHAR_MAX+1)
 
 /* MBBUF_EOF should not be a valid character.  */
 static_assert (MCEL_CHAR_MAX < MBBUF_EOF);
