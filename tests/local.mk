@@ -316,6 +316,7 @@ all_tests =					\
   tests/basenc/basenc.pl			\
   tests/basenc/bounded-memory.sh		\
   tests/basenc/large-input.sh			\
+  tests/misc/close-stdin.sh			\
   tests/misc/close-stdout.sh			\
   tests/chroot/chroot-fail.sh			\
   tests/cksum/cksum.sh				\
