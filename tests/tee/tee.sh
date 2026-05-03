@@ -26,6 +26,12 @@ printf "1\n2\n" > exp || framework_failure_
 (echo 1;sleep .1;echo 2) | tee > out || fail=1
 compare exp out || fail=1
 
+# Ensure tee is not buffered
+tee_output() { sleep $1; test -s tee_output; }
+{ printf 'a'; retry_delay_ tee_output .1 7 || touch no_output; } |
+ tee > tee_output
+test -e no_output && fail=1;
+
 # POSIX says: "Processing of at least 13 file operands shall be supported."
 for n in 0 1 2 12 13; do
   files=$(seq $n)
