@@ -11641,8 +11641,8 @@ chmod 644 foo
 chmod a=r,u+w foo
 
 # Add user and group execute permissions to FOO.
-chmod +110 file
-chmod ug+x file
+chmod +110 foo
+chmod ug+x foo
 
 # Set file permissions of DIR and subsidiary files to
 # be the umask default, assuming execute permissions for
