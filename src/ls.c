@@ -5170,10 +5170,12 @@ print_with_separator (char sep)
       if (filesno != 0)
         {
           char separator;
+          size_t next_pos = 2 + (sep == ',' && filesno < cwd_n_used - 1);
 
           if (! line_length
-              || ((pos + len + 2 < line_length)
-                  && (pos <= SIZE_MAX - len - 2)))
+              || (! ckd_add (&next_pos, next_pos, pos)
+                  && ! ckd_add (&next_pos, next_pos, len)
+                  && next_pos <= line_length))
             {
               pos += 2;
               separator = ' ';
@@ -5317,7 +5319,7 @@ calculate_columns (bool by_columns)
                                               - column_info[i].col_arr[idx]);
                   column_info[i].col_arr[idx] = real_length;
                   column_info[i].valid_len = (column_info[i].line_len
-                                              < line_length);
+                                              <= line_length);
                 }
             }
         }

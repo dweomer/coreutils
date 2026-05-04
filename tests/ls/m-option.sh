@@ -37,4 +37,17 @@ EOF
 
 compare exp out || fail=1
 
+# Ensure exact-fit comma output accounts for the trailing separator.
+touch bb c || framework_failure_
+cat <<\EOF > exp || framework_failure_
+a,
+bb, c
+EOF
+ls -w5 -m a bb c > out || fail=1
+compare exp out || fail=1
+
+printf '%s\n' 'a, bb' > exp || framework_failure_
+ls -w5 -m a bb > out || fail=1
+compare exp out || fail=1
+
 Exit $fail
