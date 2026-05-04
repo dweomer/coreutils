@@ -45,4 +45,21 @@ TERM=xterm ls -w0 -x --color=always || fail=1
 ls -w4 -x -T0 a b > out || fail=1
 compare exp out || fail=1
 
+# coreutils <= 9.11 could display 1 column too few
+touch aa c || framework_failure_
+cat <<\EOF > exp || framework_failure_
+aa  b
+c
+EOF
+ls -w6 -x -T0 aa b c > out || fail=1
+compare exp out || fail=1
+
+# coreutils <= 9.11 could display 1 column too few
+cat <<\EOF > exp || framework_failure_
+aa  c
+b
+EOF
+ls -w6 -C -T0 aa b c > out || fail=1
+compare exp out || fail=1
+
 Exit $fail

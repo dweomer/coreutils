@@ -993,8 +993,8 @@ static struct column_info *column_info;
 /* Maximum number of columns ever possible for this display.  */
 static size_t max_idx;
 
-/* The minimum width of a column is 3: 1 character for the name and 2
-   for the separating white space.  */
+/* The minimum width of a non-final column is 3: 1 character for the name
+   and 2 for the separating white space.  The final column is not padded.  */
 enum { MIN_COLUMN_WIDTH = 3 };
 
 
@@ -5276,9 +5276,10 @@ init_column_info (idx_t max_cols)
   for (idx_t i = 0; i < max_cols; ++i)
     {
       column_info[i].valid_len = true;
-      column_info[i].line_len = (i + 1) * MIN_COLUMN_WIDTH;
-      for (idx_t j = 0; j <= i; ++j)
+      column_info[i].line_len = i * MIN_COLUMN_WIDTH + 1;
+      for (idx_t j = 0; j < i; ++j)
         column_info[i].col_arr[j] = MIN_COLUMN_WIDTH;
+      column_info[i].col_arr[i] = 1;
     }
 }
 
